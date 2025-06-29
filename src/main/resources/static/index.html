@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Workflow Orchestrator</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #333; max-width: 800px; margin: 40px auto; padding: 20px; }
+        h1 { color: #1d4ed8; }
+        .container { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        label { font-weight: bold; display: block; margin-bottom: 8px; }
+        input[type="text"] { width: calc(100% - 20px); padding: 10px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 20px; }
+        button { background-color: #2563eb; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
+        button:hover { background-color: #1d4ed8; }
+        button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        #log-container { margin-top: 30px; background-color: #1e293b; color: #f8fafc; padding: 20px; border-radius: 4px; white-space: pre-wrap; font-family: "Courier New", Courier, monospace; line-height: 1.6; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: none; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI-Driven Resource Requisition</h1>
+        <p>Enter a resource request below. The system will use an AI to decide the workflow steps.</p>
+        
+        <form id="requisitionForm">
+            <label for="resourceDetails">Resource Details:</label>
+            <input type="text" id="resourceDetails" name="resourceDetails" placeholder="e.g., 'Senior Java Developer with Spring Boot experience'" required>
+            <button type="submit" id="submitBtn">Start Workflow</button>
+        </form>
+
+        <div id="spinner" class="spinner"></div>
+
+        <div id="log-container-wrapper" style="display:none;">
+            <h2>Workflow Log (As decided by AI)</h2>
+            <div id="log-container"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
