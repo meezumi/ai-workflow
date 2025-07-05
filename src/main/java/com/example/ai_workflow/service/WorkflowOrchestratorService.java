@@ -3,10 +3,11 @@ package com.example.ai_workflow.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional; // Import this
 
 import com.example.ai_workflow.model.RFP;
 import com.example.ai_workflow.model.Requisition;
@@ -16,7 +17,6 @@ import com.example.ai_workflow.repository.RequisitionRepository;
 import com.example.ai_workflow.repository.ResourceRecordRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 
 @Service
 public class WorkflowOrchestratorService {
@@ -28,20 +28,18 @@ public class WorkflowOrchestratorService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Transactional // Use a transaction to ensure data consistency
     public List<Map<String, String>> startWorkflow(String resourceDetails) {
         List<Map<String, String>> processLog = new ArrayList<>();
 
-        // 1. Initial Step: Create a Requisition
+        // Step 1: Create the Requisition
         Requisition requisition = new Requisition(resourceDetails);
         requisitionRepository.save(requisition);
-        processLog.add(Map.of(
-            "type", "USER_INPUT",
-            "title", "Step 1: Requisition Submitted",
-            "details", "User submitted a requisition for '" + resourceDetails + "'. A new record was created with ID: " + requisition.getId()
-        ));
+        processLog.add(Map.of("type", "USER_INPUT", "title", "Requisition Submitted", "details", "New requisition for '" + resourceDetails + "' created with ID: " + requisition.getId()));
 
-        String currentState = "Requisition submitted for " + resourceDetails;
+        String currentState = "Requisition submitted for: " + resourceDetails;
         boolean workflowActive = true;
+        Optional<ResourceRecord> foundResource = Optional.empty();
 
         while(workflowActive) {
             String prompt = buildPrompt(currentState);
@@ -53,56 +51,49 @@ public class WorkflowOrchestratorService {
                 String action = command.get("action");
                 String reasoning = command.get("reasoning");
 
-                processLog.add(Map.of(
-                    "type", "AI_DECISION",
-                    "title", "AI Thought Process",
-                    "details", reasoning
-                ));
-                 processLog.add(Map.of(
-                    "type", "AI_ACTION",
-                    "title", "AI Command",
-                    "details", "Next instructed action: " + action
-                ));
+                processLog.add(Map.of("type", "AI_DECISION", "title", "AI Thought Process", "details", reasoning));
+                processLog.add(Map.of("type", "AI_ACTION", "title", "AI Command", "details", "Instructed action: " + action));
 
                 switch (action) {
                     case "CHECK_AVAILABILITY":
-                        boolean isAvailable = checkInternalAvailability();
-                        currentState = isAvailable ? "Resource is available" : "Resource is not available";
-                        processLog.add(Map.of(
-                            "type", "SYSTEM_ACTION",
-                            "title", "Step 2: Check Availability",
-                            "details", "System checked internal resource availability... Result: " + (isAvailable ? "Available" : "Not Available")
-                        ));
+                        processLog.add(Map.of("type", "SYSTEM_ACTION", "title", "Searching Internal Talent Pool", "details", "Querying the database for an available resource matching '" + resourceDetails + "'."));
+                        foundResource = resourceRecordRepository.findFirstBySkillContainingIgnoreCaseAndStatus(resourceDetails, "Available");
+                        
+                        if (foundResource.isPresent()) {
+                            ResourceRecord resource = foundResource.get();
+                            currentState = "An available internal resource was found: " + resource.getName() + " (" + resource.getSkill() + ").";
+                            processLog.add(Map.of("type", "SYSTEM_ACTION", "title", "Resource Found!", "details", "Success! Found an available resource: " + resource.getName() + ", a " + resource.getSkill() + "."));
+                        } else {
+                            currentState = "No available internal resource found matching the request.";
+                            processLog.add(Map.of("type", "SYSTEM_ACTION", "title", "No Match Found", "details", "The search of the internal database yielded no available resources."));
+                        }
                         break;
 
-                    case "CREATE_RESOURCE_RECORD":
-                        ResourceRecord record = new ResourceRecord(requisition);
-                        resourceRecordRepository.save(record);
-                        requisition.setStatus("COMPLETED");
-                        requisitionRepository.save(requisition);
-                        currentState = "Internal resource record created. Workflow finished.";
-                        processLog.add(Map.of(
-                            "type", "SYSTEM_ACTION",
-                            "title", "Step 3: Create Resource Record",
-                            "details", "Created internal resource record in database. Requisition ID " + requisition.getId() + " is now COMPLETED."
-                        ));
-                         processLog.add(Map.of(
-                            "type", "FINAL_STATUS",
-                            "title", "Workflow Complete",
-                            "details", "The process concluded successfully by allocating an internal resource."
-                        ));
-                        workflowActive = false;
+                    case "ASSIGN_INTERNAL_RESOURCE":
+                        if (foundResource.isPresent()) {
+                            ResourceRecord resourceToAssign = foundResource.get();
+                            resourceToAssign.setStatus("Assigned");
+                            resourceRecordRepository.save(resourceToAssign);
+
+                            requisition.setAssignedResource(resourceToAssign);
+                            requisition.setStatus("COMPLETED");
+                            requisitionRepository.save(requisition);
+                            
+                            processLog.add(Map.of("type", "SYSTEM_ACTION", "title", "Resource Assigned", "details", "Resource '" + resourceToAssign.getName() + "' has been assigned to this requisition. Their status is now 'Assigned'."));
+                            processLog.add(Map.of("type", "FINAL_STATUS", "title", "Workflow Complete", "details", "Requisition successfully fulfilled with an internal resource."));
+                            workflowActive = false;
+                        } else {
+                             processLog.add(Map.of("type", "ERROR", "title", "Logic Error", "details", "AI tried to assign a resource but none was found. Proceeding to RFP."));
+                             currentState = "No available internal resource found matching the request."; // Force state correction
+                             // Let the loop continue to trigger the RFP path
+                        }
                         break;
 
                     case "CREATE_RFP":
                         RFP rfp = new RFP(requisition);
                         rfpRepository.save(rfp);
                         currentState = "RFP created with ID " + rfp.getId() + ". Next step is to invite partners.";
-                        processLog.add(Map.of(
-                            "type", "SYSTEM_ACTION",
-                            "title", "Step 3: Create RFP",
-                            "details", "Resource not available internally. Creating a new Request for Proposal (RFP) in the database. RFP ID: " + rfp.getId()
-                        ));
+                        processLog.add(Map.of("type", "SYSTEM_ACTION", "title", "Create RFP", "details", "Creating a new Request for Proposal (RFP) to find an external resource. RFP ID: " + rfp.getId()));
                         break;
 
                     case "INVITE_PARTNERS_TO_RFP":
@@ -110,47 +101,23 @@ public class WorkflowOrchestratorService {
                         existingRfp.setInvitedPartners("PartnerA, PartnerB, PartnerC");
                         existingRfp.setStatus("SENT");
                         rfpRepository.save(existingRfp);
+                        
                         requisition.setStatus("AWAITING_PARTNER");
                         requisitionRepository.save(requisition);
-                        currentState = "Partners invited to RFP. Workflow finished.";
-                         processLog.add(Map.of(
-                            "type", "SYSTEM_ACTION",
-                            "title", "Step 4: Invite Partners",
-                            "details", "Sending RFP to external partners. Requisition ID " + requisition.getId() + " is now AWAITING_PARTNER."
-                        ));
-                         processLog.add(Map.of(
-                            "type", "FINAL_STATUS",
-                            "title", "Workflow Complete",
-                            "details", "The process has concluded by initiating an external search via RFP."
-                        ));
+                        
+                        processLog.add(Map.of("type", "SYSTEM_ACTION", "title", "Invite Partners", "details", "Sending RFP to external partners. Requisition status is now AWAITING_PARTNER."));
+                        processLog.add(Map.of("type", "FINAL_STATUS", "title", "Workflow Complete", "details", "The process has concluded by initiating an external search via RFP."));
                         workflowActive = false;
                         break;
                     
-                    case "END_WORKFLOW":
-                        processLog.add(Map.of(
-                            "type", "FINAL_STATUS",
-                            "title", "Workflow Ended by AI",
-                            "details", "The AI has determined the workflow is complete at its current stage."
-                        ));
-                         workflowActive = false;
-                         break;
-
                     default:
-                        processLog.add(Map.of(
-                            "type", "ERROR",
-                            "title", "Error",
-                            "details", "AI returned an unknown or error action. Halting workflow."
-                        ));
+                        processLog.add(Map.of("type", "ERROR", "title", "Error", "details", "AI returned an unknown or error action. Halting workflow."));
                         workflowActive = false;
                         break;
                 }
 
             } catch (JsonProcessingException e) {
-                processLog.add(Map.of(
-                    "type", "ERROR",
-                    "title", "System Error",
-                    "details", "Failed to parse AI response: " + cleanJsonResponse
-                ));
+                processLog.add(Map.of("type", "ERROR", "title", "System Error", "details", "Failed to parse AI response: " + cleanJsonResponse));
                 workflowActive = false;
             }
         }
@@ -158,25 +125,22 @@ public class WorkflowOrchestratorService {
     }
 
     private String buildPrompt(String currentState) {
-        return "You are an AI workflow orchestrator. Your task is to decide the next step in a business process based on a defined flowchart and the current state. " +
+        // This prompt is updated to reflect the new logic
+        return "You are an AI workflow orchestrator for a resource staffing agency. Your task is to decide the next step in a hiring process. " +
                 "You must respond ONLY with a JSON object containing 'action' and 'reasoning'.\n\n" +
                 "THE WORKFLOW:\n" +
                 "1. Start -> Submit Requisition (This has already happened).\n" +
-                "2. Check Availability - Hit API: After a requisition is submitted, you must check for internal availability.\n" +
-                "3. If 'Available' -> Create Resource Record, then the process ends.\n" +
-                "4. If 'Not Available' -> Create RFP -> Invite Partners to participate in RFP, then the process ends.\n\n" +
+                "2. First, you MUST check for internal availability of the requested resource.\n" +
+                "3. If an internal resource IS found and available -> Assign the internal resource, then the process ends.\n" +
+                "4. If an internal resource IS NOT available -> Create an RFP -> Invite Partners to the RFP, then the process ends.\n\n" +
                 "AVAILABLE ACTIONS IN JSON FORMAT:\n" +
-                "- {\"action\": \"CHECK_AVAILABILITY\", \"reasoning\": \"...\"}\n" +
-                "- {\"action\": \"CREATE_RESOURCE_RECORD\", \"reasoning\": \"...\"}\n" +
-                "- {\"action\": \"CREATE_RFP\", \"reasoning\": \"...\"}\n" +
-                "- {\"action\": \"INVITE_PARTNERS_TO_RFP\", \"reasoning\": \"...\"}\n" +
-                "- {\"action\": \"END_WORKFLOW\", \"reasoning\": \"The process has reached a logical conclusion.\"}\n\n" +
+                "- {\"action\": \"CHECK_AVAILABILITY\", \"reasoning\": \"The first logical step after a requisition is to check our internal talent pool.\"}\n" +
+                "- {\"action\": \"ASSIGN_INTERNAL_RESOURCE\", \"reasoning\": \"An available internal resource was found, so I will assign them to fulfill the requisition.\"}\n" +
+                "- {\"action\": \"CREATE_RFP\", \"reasoning\": \"No internal resources are available, so we must look for an external candidate by creating an RFP.\"}\n" +
+                "- {\"action\": \"INVITE_PARTNERS_TO_RFP\", \"reasoning\": \"The RFP has been created, so the next step is to send it to our partners.\"}\n\n" +
                 "CURRENT STATE: \"" + currentState + "\"\n\n" +
-                "Based on the workflow and the current state, what is the next action to take? Respond with only the JSON object.";
+                "Based on the workflow and the current state, what is the next logical action? Respond with only the JSON object.";
     }
-
-    // This simulates an external API call to check for resource availability.
-    private boolean checkInternalAvailability() {
-        return new Random().nextBoolean();
-    }
+    
+    // The checkInternalAvailability() method is no longer needed as its logic is now inside the main loop.
 }

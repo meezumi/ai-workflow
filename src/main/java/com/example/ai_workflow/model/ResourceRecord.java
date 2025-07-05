@@ -4,7 +4,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToOne;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -16,13 +15,13 @@ public class ResourceRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
-    private Requisition requisition;
+    private String name; // e.g., "Jane Doe"
+    private String skill; // e.g., "Senior Java Developer"
+    private String status; // "Available", "Assigned"
 
-    private String notes;
-
-    public ResourceRecord(Requisition requisition) {
-        this.requisition = requisition;
-        this.notes = "Internal resource allocated successfully.";
+    public ResourceRecord(String name, String skill) {
+        this.name = name;
+        this.skill = skill;
+        this.status = "Available";
     }
 }
