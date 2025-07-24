@@ -5,13 +5,10 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import com.example.ai_workflow.model.ResourceRecord; // Changed from Optional
+import com.example.ai_workflow.model.ResourceRecord;
 
 @Repository
 public interface ResourceRecordRepository extends JpaRepository<ResourceRecord, Long> {
-
-    // This method is no longer specific enough, we'll replace its usage.
-    // Optional<ResourceRecord> findFirstBySkillContainingIgnoreCaseAndStatus(String skill, String status);
 
     /**
      * Finds all available resources whose title contains a specific keyword.

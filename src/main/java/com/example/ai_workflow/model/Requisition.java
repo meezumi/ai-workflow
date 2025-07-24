@@ -18,7 +18,7 @@ public class Requisition {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    private String resourceDetails; // The user's request, e.g., "Java Developer"
+    private String resourceDetails; // The user's request
     private String status; // PENDING, PROCESSING, COMPLETED, FAILED
 
     // Link to the resource that fulfilled this request

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional; // Import this
 
+import com.example.ai_workflow.model.RFP;
 import com.example.ai_workflow.model.Requisition;
 import com.example.ai_workflow.model.ResourceRecord;
 import com.example.ai_workflow.repository.RFPRepository;
@@ -108,7 +109,31 @@ public class WorkflowOrchestratorService {
                         }
                         break;
                     
-                    // ... CREATE_RFP and INVITE_PARTNERS_TO_RFP cases remain the same ...
+                    case "CREATE_RFP":
+                        RFP rfp = new RFP(requisition);
+                        rfpRepository.save(rfp);
+                        currentState = "RFP created with ID " + rfp.getId() + ". Next step is to invite partners.";
+                        processLog.add(Map.of("type", "SYSTEM_ACTION", "title", "Create RFP", "details", "Creating a new Request for Proposal (RFP) to find an external resource. RFP ID: " + rfp.getId()));
+                        break;
+
+                    case "INVITE_PARTNERS_TO_RFP":
+                        RFP existingRfp = rfpRepository.findByRequisition(requisition).orElseThrow();
+                        existingRfp.setInvitedPartners("PartnerA, PartnerB, PartnerC");
+                        existingRfp.setStatus("SENT");
+                        rfpRepository.save(existingRfp);
+                        
+                        requisition.setStatus("AWAITING_PARTNER");
+                        requisitionRepository.save(requisition);
+                        
+                        processLog.add(Map.of("type", "SYSTEM_ACTION", "title", "Invite Partners", "details", "Sending RFP to external partners. Requisition status is now AWAITING_PARTNER."));
+                        processLog.add(Map.of("type", "FINAL_STATUS", "title", "Workflow Complete", "details", "The process has concluded by initiating an external search via RFP."));
+                        workflowActive = false;
+                        break;
+                    
+                    default:
+                        processLog.add(Map.of("type", "ERROR", "title", "Error", "details", "AI returned an unknown or error action. Halting workflow."));
+                        workflowActive = false;
+                        break;
                 }
             } catch (Exception e) { // Catch broader exceptions
                 processLog.add(Map.of("type", "ERROR", "title", "System Error", "details", "An unexpected error occurred: " + e.getMessage()));

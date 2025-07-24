@@ -16,13 +16,13 @@ public class ResourceRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String name;        // e.g., "Alice Johnson"
-    private String title;       // e.g., "Senior Java Developer"
+    private String name;       
+    private String title;       
     
-    @Column(length = 1024)      // A longer field for a detailed profile
-    private String profile;     // e.g., "10+ years experience with Java, Spring Boot, Microservices architecture..."
+    @Column(length = 1024)      
+    private String profile;     
     
-    private String status;      // "Available", "Assigned"
+    private String status;      
 
     public ResourceRecord(String name, String title, String profile) {
         this.name = name;
