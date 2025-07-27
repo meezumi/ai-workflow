@@ -72,35 +72,7 @@ This model makes the AI's "thinking" process transparent and central to the appl
         *   JDBC URL: `jdbc:h2:mem:workflowdb`
         *   User Name: `sa`
         *   Password: `password`
-
-## Project Structure
-
-.
-├── pom.xml
-└── src
-└── main
-├── java
-│ └── com/example/aiworkflow
-│ ├── AiWorkflowApplication.java
-│ ├── controller
-│ │ └── WorkflowController.java
-│ ├── model
-│ │ ├── RFP.java
-│ │ ├── Requisition.java
-│ │ └── ResourceRecord.java
-│ ├── repository
-│ │ ├── RFPRepository.java
-│ │ ├── RequisitionRepository.java
-│ │ └── ResourceRecordRepository.java
-│ └── service
-│ ├── GeminiService.java
-│ └── WorkflowOrchestratorService.java
-└── resources
-├── application.properties
-└── static
-├── index.html
-└── script.js
-
+          
 
 ## API Endpoint
 
